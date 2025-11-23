@@ -1,9 +1,13 @@
 package main
 
 import (
+	"MessagingServer/internal/models"
 	"MessagingServer/internal/server"
+	"fmt"
 	"log"
 	"net/http"
+	"strconv"
+	"time"
 
 	"github.com/gorilla/websocket"
 )
@@ -27,6 +31,18 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		log.Println("WebSocket Loading err: ", err)
 		return
 	}
+
+	tempUser := &models.User{
+		ID:       strconv.FormatInt(time.Now().UnixNano(), 10),
+		Username: fmt.Sprintf("User:%d", time.Now().UnixNano()),
+		IsActive: true,
+		Role:     models.RoleUser,
+	}
+	client := server.NewClient(tempUser, globalHub, connection)
+
+	globalHub.Register <- client
+	go client.WritePump()
+	go client.ReadPump()
 
 	defer func(connection *websocket.Conn) {
 		err := connection.Close()

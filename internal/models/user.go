@@ -8,7 +8,7 @@ const (
 )
 
 type User struct {
-	ID       int
+	ID       string
 	Username string
 	IsActive bool
 	Role     Role
