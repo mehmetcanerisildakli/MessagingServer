@@ -47,7 +47,7 @@ func (h *Hub) Run() {
 				leaveBytes, _ := json.Marshal(leaveMsg)
 
 				delete(h.clients, client.User.ID)
-				close(client.send)
+				close(client.Send)
 				h.mutex.Unlock()
 				h.Broadcast <- leaveBytes
 			} else {
@@ -87,11 +87,11 @@ func (h *Hub) BroadcastPublic(rawMessage []byte) {
 	h.mutex.RUnlock()
 	for _, client := range clients {
 		select {
-		case client.send <- rawMessage:
+		case client.Send <- rawMessage:
 		default:
 			h.mutex.Lock()
 			if _, ok := h.clients[client.User.ID]; ok {
-				close(client.send)
+				close(client.Send)
 				delete(h.clients, client.User.ID)
 			}
 			h.mutex.Unlock()
@@ -105,10 +105,10 @@ func (h *Hub) BroadcastPrivate(rawMessage []byte, targetID string) {
 	if targetClient, ok := h.clients[targetID]; ok {
 		if targetClient.User.IsActive {
 			select {
-			case targetClient.send <- rawMessage:
+			case targetClient.Send <- rawMessage:
 			default:
 				log.Println("can not send message to client (channel is full):", targetClient)
-				close(targetClient.send)
+				close(targetClient.Send)
 				delete(h.clients, targetClient.User.ID)
 			}
 		} else {

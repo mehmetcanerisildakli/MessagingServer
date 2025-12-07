@@ -13,7 +13,7 @@ type Client struct {
 	User       *models.User
 	Hub        *Hub
 	Connection *websocket.Conn
-	send       chan []byte
+	Send       chan []byte
 }
 
 const (
@@ -28,7 +28,7 @@ func NewClient(user *models.User, hub *Hub, connection *websocket.Conn) *Client 
 		User:       user,
 		Hub:        hub,
 		Connection: connection,
-		send:       make(chan []byte, maxMessageSize),
+		Send:       make(chan []byte, maxMessageSize),
 	}
 }
 
@@ -85,7 +85,7 @@ func (c *Client) WritePump() {
 	}()
 	for {
 		select {
-		case message, ok := <-c.send:
+		case message, ok := <-c.Send:
 			c.Connection.SetWriteDeadline(time.Now().Add(writeWait))
 			if !ok {
 				c.Connection.WriteMessage(websocket.CloseMessage, []byte{})

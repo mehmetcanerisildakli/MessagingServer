@@ -61,7 +61,7 @@ func wsHandler(w http.ResponseWriter, r *http.Request) {
 		Timestamp:  time.Now(),
 	}
 	welcomeBytes, _ := json.Marshal(welcomeMsg)
-	client.send <- welcomeBytes
+	client.Send <- welcomeBytes
 	sendUserList(client)
 	notifyUserJoined(tempUser)
 }
@@ -76,7 +76,7 @@ func sendUserList(client *server.Client) {
 	userJson, _ := json.Marshal(users)
 	userListMsg.Content = string(userJson)
 	userListBytes, _ := json.Marshal(userListMsg)
-	client.send <- userListBytes
+	client.Send <- userListBytes
 }
 
 func notifyUserJoined(user *models.User) {
