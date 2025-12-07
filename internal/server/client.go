@@ -2,6 +2,7 @@ package server
 
 import (
 	"MessagingServer/internal/models"
+	"encoding/json"
 	"log"
 	"time"
 
@@ -44,7 +45,9 @@ func (c *Client) ReadPump() {
 	if err != nil {
 		return
 	}
-	c.Connection.SetPongHandler(func(string) error { err = c.Connection.SetReadDeadline(time.Now().Add(pongWait)); return err })
+	c.Connection.SetPongHandler(func(string) error {
+		return c.Connection.SetReadDeadline(time.Now().Add(pongWait))
+	})
 
 	for {
 		_, message, err := c.Connection.ReadMessage()
@@ -54,8 +57,20 @@ func (c *Client) ReadPump() {
 			}
 			break
 		}
-
-		c.Hub.Broadcast <- message
+		var clientMsg models.ClientMessage
+		if err = json.Unmarshal(message, &clientMsg); err != nil {
+			log.Println("Error unmarshalling client message:", err)
+			continue
+		}
+		clientMsg.Sender = c.User.ID
+		clientMsg.SenderName = c.User.Username
+		clientMsg.Timestamp = time.Now()
+		messageBytes, err := json.Marshal(clientMsg)
+		if err != nil {
+			log.Println("Error marshalling client message:", err)
+			continue
+		}
+		c.Hub.Broadcast <- messageBytes
 	}
 }
 

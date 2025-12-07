@@ -8,8 +8,8 @@ const (
 )
 
 type User struct {
-	ID       string
-	Username string
-	IsActive bool
-	Role     Role
+	ID       string `json:"id"`
+	Username string `json:"username"`
+	IsActive bool   `json:"is_active"`
+	Role     Role   `json:"role"`
 }

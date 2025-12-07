@@ -1,5 +1,7 @@
 package models
 
+import "time"
+
 type MessageType string
 
 const (
@@ -10,8 +12,10 @@ const (
 )
 
 type ClientMessage struct {
-	Type    MessageType `json:"type"`
-	Sender  string      `json:"sender"`
-	Target  string      `json:"target, omitempty"`
-	Content string      `json:"content"`
+	Type       MessageType `json:"type"`
+	Sender     string      `json:"sender"`
+	SenderName string      `json:"sender_name,omitempty"`
+	Target     string      `json:"target,omitempty"`
+	Content    string      `json:"content"`
+	Timestamp  time.Time   `json:"timestamp"`
 }

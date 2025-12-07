@@ -3,8 +3,10 @@ package server
 import (
 	"MessagingServer/internal/models"
 	"encoding/json"
+	"fmt"
 	"log"
 	"sync"
+	"time"
 )
 
 type Hub struct {
@@ -25,7 +27,6 @@ func NewHub() *Hub {
 }
 
 func (h *Hub) Run() {
-
 	for {
 		select {
 		case client := <-h.Register:
@@ -36,29 +37,31 @@ func (h *Hub) Run() {
 		case client := <-h.unregister:
 			h.mutex.Lock()
 			if _, ok := h.clients[client.User.ID]; ok {
+				leaveMsg := models.ClientMessage{
+					Type:       models.MsgTypeStatus,
+					Content:    fmt.Sprintf(`{"%s leaved the chat"}`, client.User.Username),
+					Sender:     client.User.ID,
+					SenderName: client.User.Username,
+					Timestamp:  time.Now(),
+				}
+				leaveBytes, _ := json.Marshal(leaveMsg)
+
 				delete(h.clients, client.User.ID)
 				close(client.send)
+				h.mutex.Unlock()
+				h.Broadcast <- leaveBytes
+			} else {
+				h.mutex.Unlock()
 			}
 			log.Println("Unregister client:", client)
 			h.mutex.Unlock()
-		case message := <-h.Broadcast:
-			h.mutex.RLock()
-			for _, client := range h.clients {
-				if client.User.IsActive {
-					select {
-					case client.send <- message:
-					default:
-						close(client.send)
-						delete(h.clients, client.User.ID)
-					}
-				}
-				log.Printf("Broadcast message: %s  id: %s\n", string(message), client.User.ID)
-			}
-			h.mutex.RUnlock()
 		case rawMessage := <-h.Broadcast:
 			var msg models.ClientMessage
 			if err := json.Unmarshal(rawMessage, &msg); err != nil {
-				log.Println("message read error")
+				log.Println("message read error: ", err)
+			}
+			if msg.Sender == "" {
+				continue // we can add a log here
 			}
 			switch msg.Type {
 			case models.MsgTypePublic:
@@ -66,7 +69,7 @@ func (h *Hub) Run() {
 			case models.MsgTypePrivate:
 				h.BroadcastPrivate(rawMessage, msg.Target)
 			default:
-				log.Println("unknown message type:", msg.Type)
+				log.Println("Unknown message type:", msg.Type)
 			}
 		}
 	}
@@ -75,14 +78,23 @@ func (h *Hub) Run() {
 func (h *Hub) BroadcastPublic(rawMessage []byte) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
+	clients := make([]*Client, 0, len(h.clients))
 	for _, client := range h.clients {
 		if client.User.IsActive {
-			select {
-			case client.send <- rawMessage:
-			default:
+			clients = append(clients, client)
+		}
+	}
+	h.mutex.RUnlock()
+	for _, client := range clients {
+		select {
+		case client.send <- rawMessage:
+		default:
+			h.mutex.Lock()
+			if _, ok := h.clients[client.User.ID]; ok {
 				close(client.send)
 				delete(h.clients, client.User.ID)
 			}
+			h.mutex.Unlock()
 		}
 	}
 }
@@ -112,9 +124,28 @@ func (h *Hub) ToggleUserActiveStatus(targetUserID string, isActive bool) bool {
 	h.mutex.Lock()
 	defer h.mutex.Unlock()
 	if client, ok := h.clients[targetUserID]; ok {
-		isActive = client.User.IsActive
+		client.User.IsActive = isActive
 		log.Println("Toggle user active status:", isActive)
 		return true
 	}
 	return false
+}
+
+func (h *Hub) GetAllUsers() []*models.User {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+	users := make([]*models.User, 0, len(h.clients))
+	for _, client := range h.clients {
+		users = append(users, client.User)
+	}
+	return users
+}
+
+func (h *Hub) GetUser(userID string) *models.User {
+	h.mutex.RLock()
+	defer h.mutex.RUnlock()
+	if client, ok := h.clients[userID]; ok {
+		return client.User
+	}
+	return nil
 }
