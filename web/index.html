@@ -428,11 +428,14 @@
     function handleIncomingMessage(msg) {
         if (msg.type === 'status') {
             addSystemMessage(msg.content);
-            // Hoş geldin mesajından kullanıcı ID'sini al
-            if (msg.content.includes('Hoş geldin')) {
-                currentUserId = msg.sender;
-                currentUserDiv.textContent = `Kullanıcı: ${currentUsername}`;
-                currentUserIdDiv.textContent = `ID: ${currentUserId}`;
+            // ✅ "Welcome" veya "Hoş geldin" kontrolü
+            if (msg.content.includes('Welcome') || msg.content.includes('Hoş geldin')) {
+                // User ID'yi sender'dan al
+                if (msg.sender) {
+                    currentUserId = msg.sender;
+                    currentUserDiv.textContent = `Kullanıcı: ${currentUsername}`;
+                    currentUserIdDiv.textContent = `ID: ${currentUserId}`;
+                }
             }
         } else if (msg.type === 'control' && msg.content.startsWith('[')) {
             // Kullanıcı listesi

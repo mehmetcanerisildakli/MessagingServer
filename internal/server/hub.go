@@ -54,20 +54,22 @@ func (h *Hub) Run() {
 				h.mutex.Unlock()
 			}
 			log.Println("Unregister client:", client)
-			h.mutex.Unlock()
 		case rawMessage := <-h.Broadcast:
 			var msg models.ClientMessage
 			if err := json.Unmarshal(rawMessage, &msg); err != nil {
 				log.Println("message read error: ", err)
+				continue
 			}
 			if msg.Sender == "" {
-				continue // we can add a log here
+				continue
 			}
 			switch msg.Type {
 			case models.MsgTypePublic:
 				h.BroadcastPublic(rawMessage)
 			case models.MsgTypePrivate:
 				h.BroadcastPrivate(rawMessage, msg.Target)
+			case models.MsgTypeStatus, models.MsgTypeControl:
+				h.BroadcastPublic(rawMessage)
 			default:
 				log.Println("Unknown message type:", msg.Type)
 			}
@@ -77,7 +79,6 @@ func (h *Hub) Run() {
 
 func (h *Hub) BroadcastPublic(rawMessage []byte) {
 	h.mutex.RLock()
-	defer h.mutex.RUnlock()
 	clients := make([]*Client, 0, len(h.clients))
 	for _, client := range h.clients {
 		if client.User.IsActive {
@@ -85,6 +86,7 @@ func (h *Hub) BroadcastPublic(rawMessage []byte) {
 		}
 	}
 	h.mutex.RUnlock()
+
 	for _, client := range clients {
 		select {
 		case client.Send <- rawMessage:
@@ -102,20 +104,42 @@ func (h *Hub) BroadcastPublic(rawMessage []byte) {
 func (h *Hub) BroadcastPrivate(rawMessage []byte, targetID string) {
 	h.mutex.RLock()
 	defer h.mutex.RUnlock()
-	if targetClient, ok := h.clients[targetID]; ok {
+	var msg models.ClientMessage
+	if err := json.Unmarshal(rawMessage, &msg); err != nil {
+		log.Println("message read error: ", err)
+		return
+	}
+	h.mutex.RLock()
+	targetClient, targetOk := h.clients[targetID]
+	senderClient, senderOk := h.clients[msg.Sender]
+	h.mutex.RUnlock()
+	if targetOk {
 		if targetClient.User.IsActive {
 			select {
 			case targetClient.Send <- rawMessage:
 			default:
 				log.Println("can not send message to client (channel is full):", targetClient)
-				close(targetClient.Send)
-				delete(h.clients, targetClient.User.ID)
+				h.mutex.Lock()
+				if _, ok := h.clients[targetID]; ok {
+					close(targetClient.Send)
+					delete(h.clients, targetID)
+				}
+				h.mutex.Unlock()
 			}
 		} else {
 			log.Println("can not find client (target user is passive):", targetID)
 		}
 	} else {
 		log.Println("can not find client (target user is not exist):", targetID)
+	}
+
+	if msg.Sender != "" && senderOk {
+		if senderClient.User.IsActive {
+			select {
+			case senderClient.Send <- rawMessage:
+			default:
+			}
+		}
 	}
 
 }

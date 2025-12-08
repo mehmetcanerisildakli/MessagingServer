@@ -70,6 +70,7 @@ func sendUserList(client *server.Client) {
 	users := globalHub.GetAllUsers()
 	userListMsg := models.ClientMessage{
 		Type:      models.MsgTypeControl,
+		Sender:    client.User.ID,
 		Content:   "user_list",
 		Timestamp: time.Now(),
 	}
